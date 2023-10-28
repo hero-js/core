@@ -1,0 +1,11 @@
+.eslintignore
+.eslintrc
+.npmignore
+.gitignore
+jest.config.js
+pnpm-lock.yaml
+typedoc.json
+tsconfig.json
+src/
+docs/
+logo-**
