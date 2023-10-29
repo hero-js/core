@@ -1,2 +1,2 @@
-export { default as CoreRouter } from './class/Router';
-export * as ICore from './class/Router';
+export { default as Router } from './class/Router';
+export * as ICore from './interfaces/router';

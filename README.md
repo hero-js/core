@@ -31,7 +31,7 @@ yarn add @hero-js/core
 Here's a simple example of how to use `@hero-js/core` with a specific framework (e.g., Express):
 
 ```javascript
-import { ExpressAdapter, Express } from '@hero-js/express';
+import { ExpressAdapter, Express } from '@hero-js/express-adapter';
 import { Router } from '@hero-js/core';
 
 const adapter = new ExpressAdapter();

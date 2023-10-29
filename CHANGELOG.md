@@ -2,6 +2,28 @@
 
 All notable changes to the `@hero-js/core` package will be documented in this file.
 
+## [0.1.0] - 2023-10-29
+
+### Added
+
+- Added support for dynamic middleware preloading using the `Router.preload` method.
+- Introduced support for middleware class resolution and handler methods.
+- Added a new `fullPreload` option to preload all middleware classes.
+- Support for specifying the name of the router instance.
+- Enabled creation of a new `Router` instance with a name.
+- Enhanced middleware mounting with dynamic class resolution.
+
+### Changed
+
+- Modified the `Router` constructor to accept additional options like `name` and `fullPreload`.
+- Updated the `Router.use` method to create a new instance of `Router`.
+- Refined the error messages for middleware loading failures.
+- Improved middleware class name resolution.
+
+### Removed
+
+- Removed the warning message about invalid paths in the `Router.use` method.
+
 ## [Unreleased]
 
 ### Added

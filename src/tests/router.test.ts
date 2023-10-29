@@ -1,3 +1,4 @@
+import path from 'path';
 import Router from '../class/Router'; // Adjust the import path as needed
 import { GenericTypes, RequestHandler } from '../interfaces/router';
 
@@ -11,7 +12,7 @@ describe('Router', () => {
 
   it('should add a "use" route with middleware', () => {
     const router = Router.create<G>();
-    router.use(({request, response, next}) => {
+    router.use(({ request, response, next }) => {
       // Middleware logic
       next();
     });
@@ -62,18 +63,20 @@ describe('Router', () => {
 
   it('should add middleware to the last mounted route', () => {
     const router = Router.create<G>();
-    router.use(({request, response, next}) => {
+    router.use(({ request, response, next }) => {
       // Middleware logic
       next();
     });
-    router.use(({request, response, next}) => {
+    router.use(({ request, response, next }) => {
       // Another middleware logic
       next();
     });
-    router.middleware([({request, response, next}) => {
-      // Additional middleware
-      next();
-    }]);
+    router.middleware([
+      ({ request, response, next }) => {
+        // Additional middleware
+        next();
+      },
+    ]);
 
     const route = router['routes'].get('use::*');
     expect(route?.middlewares).toHaveLength(3);
@@ -81,28 +84,132 @@ describe('Router', () => {
 
   it('should apply batch middlewares to selected routes', () => {
     const router = Router.create<G>();
-    router.use(({request, response, next}) => {
-      // Middleware logic
-      next();
-    });
-    router.use(({request, response, next}) => {
-      // Another middleware logic
-      next();
-    });
-    router.post('/api', 'ControllerName.create').middleware([({next}) => next()]);
-    router.get('/api', 'ControllerName.one').middleware([({ next }) => next()]);
 
     const routeKeys = ['use::*', 'post::/api', 'get::/api'];
-    const middlewares: RequestHandler<G>[] = [({request, response, next}) => {
-      // Batch middleware logic
-      next();
-    }];
+    const middlewares: RequestHandler<G>[] = [
+      ({ request, response, next }) => {
+        // Batch middleware logic
+        next();
+      },
+    ];
 
-    router.batchMiddlewares(middlewares)(routeKeys);
+    router.batchMiddlewares(middlewares)([
+      router.use(({ request, response, next }) => {
+        // Middleware logic
+        next();
+      }, 'MiddlewareName').register,
+      router
+        .post('/api', 'ControllerName.create')
+        .middleware([({ next }) => next()]).register,
+      router
+        .get('/api', 'ControllerName.one')
+        .middleware([({ next }) => next()]).register,
+    ]);
+
+    console.log(router['routes'].get('use::*')?.middlewares);
 
     for (const routeKey of routeKeys) {
       const route = router['routes'].get(routeKey);
-      expect(route?.middlewares).toHaveLength(3); // 1 original + 1 middleware + 1 batch middleware
+      expect(route?.middlewares).toHaveLength(3); // 1 with method + 1 middleware + 1 batch middleware
     }
+  });
+
+  describe('preload', () => {
+    it('should preload middleware classes', () => {
+      // Create an instance of your Router class
+      const router = new Router({ fullPreload: true });
+
+      // Define some sample middleware names
+      const middlewareNames = ['Middleware1', 'Middleware2'];
+
+      router['routes'].set('get::/route1', {
+        middlewares: [middlewareNames[0]],
+      } as any);
+      router['routes'].set('post::/route2', {
+        middlewares: [middlewareNames[1]],
+      } as any);
+
+      // Mock the Treegen.scanDir function to return file paths
+      const mockScanDir = jest.fn(
+        ({ dirPath = process.cwd() }: { dirPath: string }) => {
+          return middlewareNames
+            .map((name) => `root>${name}.js`)
+            .join('\n') as any;
+        }
+      );
+
+      class MyMiddleware {}
+
+      // Mock the loadClass function to simulate loading classes
+      const mockLoadClass = jest.fn(
+        (fullPath, middlewareClassName) => MyMiddleware
+      );
+
+      // Mock the preloadMiddleware function to simulate preloading middlewares
+      const mockPreloadMiddleware = jest.fn((middleware, projectFiles) => {
+        const fullPath = path.join(process.cwd(), `/${middleware}.js`);
+
+        if (router['fullPreload'])
+          router['loadClass'](
+            fullPath,
+            router['middlewareClassName'](middleware)
+          );
+
+        router['preloadedHandler'].set(middleware, {
+          fullPath,
+          middlewareClassName: router['middlewareClassName'](middleware),
+          MiddlewareClass: router['fullPreload'] ? MyMiddleware : undefined,
+        });
+      });
+
+      // Replace the original methods with mocks
+      router['preloadMiddleware'] = mockPreloadMiddleware;
+      router['preloadScanDir'] = mockScanDir;
+      router['loadClass'] = mockLoadClass;
+
+      // Call the preload method
+      router['preload']();
+
+      // Assert that the scanDir and loadClass functions were called with the correct arguments
+      expect(mockScanDir).toHaveBeenCalled();
+      expect(mockLoadClass).toHaveBeenCalledWith(
+        path.join(process.cwd(), `/${middlewareNames[0]}.js`),
+        'Middleware1'
+      );
+      expect(mockLoadClass).toHaveBeenCalledWith(
+        path.join(process.cwd(), `/${middlewareNames[1]}.js`),
+        'Middleware2'
+      );
+      expect(mockPreloadMiddleware).toHaveBeenCalledWith('Middleware1', [
+        'root/Middleware1.js',
+        'root/Middleware2.js',
+      ]);
+      expect(mockPreloadMiddleware).toHaveBeenCalledWith('Middleware2', [
+        'root/Middleware1.js',
+        'root/Middleware2.js',
+      ]);
+
+      // Check if the preloadedHandler map has the expected entries
+      expect(router['preloadedHandler']).toEqual(
+        new Map<string, any>([
+          [
+            'Middleware1',
+            {
+              fullPath: 'E:\\project\\herojs\\packages\\core\\Middleware1.js',
+              middlewareClassName: 'Middleware1',
+              MiddlewareClass: MyMiddleware,
+            },
+          ],
+          [
+            'Middleware2',
+            {
+              fullPath: 'E:\\project\\herojs\\packages\\core\\Middleware2.js',
+              middlewareClassName: 'Middleware2',
+              MiddlewareClass: MyMiddleware,
+            },
+          ],
+        ])
+      );
+    });
   });
 });

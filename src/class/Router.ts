@@ -1,10 +1,15 @@
 import {
   RouteSettings,
   RequestHandler,
-  AllowedMethod,
   GenericTypes,
+  RouteStore,
+  RouteKey,
+  AllowedMethod,
+  HTTP_METHOD,
 } from '../interfaces/router';
 import Context from '@hero-js/Context';
+import { Treegen } from '@hero-js/treegen';
+import path from 'path';
 
 /**
  * Class for managing generic routes.
@@ -13,16 +18,30 @@ import Context from '@hero-js/Context';
  */
 export default class Router<G extends GenericTypes> {
   protected context: Context | null;
-  protected routes: RouteSettings<G> = new Map();
-  private lastMountedRouteKey?: string;
+  protected static routeStore: RouteStore<GenericTypes> = new Map();
+  protected preloadedHandler: Map<
+    string,
+    { fullPath: string; middlewareClassName: string; MiddlewareClass?: any }
+  > = new Map();
+  protected lastMountedRouteKey?: RouteKey;
+  protected name: string;
+  protected fullPreload: boolean;
 
   /**
    * Create an instance of the Router class with an optional context.
    *
    * @param context - The context to use, or a volatile context by default.
    */
-  constructor(context?: Context | null) {
+  constructor({
+    name,
+    context,
+    fullPreload = false,
+  }: { name?: string; context?: Context | null; fullPreload?: boolean } = {}) {
     this.context = context ?? Context.createVolatileContext();
+    this.name = name ?? Math.random().toString(36).substring(3);
+    this.fullPreload = fullPreload;
+
+    if (!this.routes) Router.routeStore.set(this.name, new Map());
   }
 
   /**
@@ -30,9 +49,50 @@ export default class Router<G extends GenericTypes> {
    *
    * @returns {Router<G>} A new instance of Router.
    */
-  public static create<G extends GenericTypes>(): Router<G> {
-    return new Router<G>();
+  public static create<G extends GenericTypes>(name?: string): Router<G> {
+    return new Router<G>({ name });
   }
+
+  // public static use<G extends GenericTypes>(
+  //   ...handlers: RequestHandler<G>[]
+  // ): Router<G> {
+  //   return Router.create<G>().use(...handlers);
+  // }
+
+  // public static post<G extends GenericTypes>(
+  //   path: string,
+  //   handler: RequestHandler<G>
+  // ) {
+  //   return Router.create<G>().post(path, handler);
+  // }
+
+  // public static get<G extends GenericTypes>(
+  //   path: string,
+  //   handler: RequestHandler<G>
+  // ) {
+  //   return Router.create<G>().get(path, handler);
+  // }
+
+  // public static put<G extends GenericTypes>(
+  //   path: string,
+  //   handler: RequestHandler<G>
+  // ) {
+  //   return Router.create<G>().put(path, handler);
+  // }
+
+  // public static patch<G extends GenericTypes>(
+  //   path: string,
+  //   handler: RequestHandler<G>
+  // ) {
+  //   return Router.create<G>().patch(path, handler);
+  // }
+
+  // public static delete<G extends GenericTypes>(
+  //   path: string,
+  //   handler: RequestHandler<G>
+  // ) {
+  //   return Router.create<G>().delete(path, handler);
+  // }
 
   /**
    * The `use` method mounts middleware on the specified path and handles requests with the given request handlers.
@@ -52,7 +112,7 @@ export default class Router<G extends GenericTypes> {
    * router.use('/api', MiddlewareClass.name);
    * ```
    */
-  public use(...handlers: (RequestHandler<G>)[]): Router<G> {
+  public use(...handlers: RequestHandler<G>[]): Router<G> {
     let path = '*';
 
     if (
@@ -62,17 +122,15 @@ export default class Router<G extends GenericTypes> {
     ) {
       path = handlers[0];
       handlers.shift();
-    } else {
-      console.warn(
-        'You have multiple handlers, and the first handler does not specify a valid path; it will be utilized as a middleware class name.'
-      );
     }
+    // else {
+    //   console.warn(
+    //     'You have multiple handlers, and the first handler does not specify a valid path; it will be utilized as a middleware class name.'
+    //   );
+    // }
 
-    const handler = handlers.pop();
+    this.mountRoutes(HTTP_METHOD.USE, path, ...handlers);
 
-    if (handler) {
-      this.mountRoutes('use', path, handler);
-    }
     return this;
   }
 
@@ -93,8 +151,8 @@ export default class Router<G extends GenericTypes> {
    * router.post('/api', 'ControllerName.create');
    * ```
    */
-  public post(path: string, handler: RequestHandler<G>) {
-    this.mountRoutes('post', path.trim(), handler);
+  public post(path: string, ...handlers: RequestHandler<G>[]) {
+    this.mountRoutes(HTTP_METHOD.POST, path.trim(), ...handlers);
     return this;
   }
 
@@ -115,8 +173,8 @@ export default class Router<G extends GenericTypes> {
    * router.get('/api', 'ControllerName.one');
    * ```
    */
-  public get(path: string, handler: RequestHandler<G>) {
-    this.mountRoutes('get', path.trim(), handler);
+  public get(path: string, ...handlers: RequestHandler<G>[]) {
+    this.mountRoutes(HTTP_METHOD.GET, path.trim(), ...handlers);
     return this;
   }
 
@@ -137,8 +195,8 @@ export default class Router<G extends GenericTypes> {
    * router.put('/api', 'ControllerName.update');
    * ```
    */
-  public put(path: string, handler: RequestHandler<G>) {
-    this.mountRoutes('put', path.trim(), handler);
+  public put(path: string, ...handlers: RequestHandler<G>[]) {
+    this.mountRoutes(HTTP_METHOD.PUT, path.trim(), ...handlers);
     return this;
   }
 
@@ -159,8 +217,8 @@ export default class Router<G extends GenericTypes> {
    * router.patch('/api', 'ControllerName.patch');
    * ```
    */
-  public patch(path: string, handler: RequestHandler<G>) {
-    this.mountRoutes('patch', path.trim(), handler);
+  public patch(path: string, ...handlers: RequestHandler<G>[]) {
+    this.mountRoutes('patch', path.trim(), ...handlers);
     return this;
   }
 
@@ -181,8 +239,8 @@ export default class Router<G extends GenericTypes> {
    * router.delete('/api', 'ControllerName.delete');
    * ```
    */
-  public delete(path: string, handler: RequestHandler<G>) {
-    this.mountRoutes('delete', path.trim(), handler);
+  public delete(path: string, ...handlers: RequestHandler<G>[]) {
+    this.mountRoutes('delete', path.trim(), ...handlers);
     return this;
   }
 
@@ -190,40 +248,40 @@ export default class Router<G extends GenericTypes> {
    * Add middleware to the currently mounted route.
    *
    * @param {RequestHandler<G>[]} middlewares - The middleware handlers.
-   * @returns {Router<G>} - The current router instance.
+   * @returns {{ register: RouteKey; }} - Object with the last mounted route key.
    */
-  public middleware(middlewares: RequestHandler<G>[]) {
+
+  public middleware(middlewares: RequestHandler<G>[]): { register: RouteKey } {
     if (this.lastMountedRouteKey) {
       const route = this.routes.get(this.lastMountedRouteKey);
 
       route?.middlewares.unshift(...middlewares);
     }
-    return this;
+    return { register: this.register };
   }
 
   /**
    * Apply a batch of middlewares to selected routes.
    *
    * @param {RequestHandler<G>[]} middlewares - The middleware handlers.
-   * @returns {(routeKeys: string[]) => Router<G>} - A function to apply middlewares to selected routes.
+   * @returns {(routeKeys: string[]) => void} - A function to apply middlewares to selected routes.
    */
   public batchMiddlewares(
-    middlewares: (RequestHandler<G>)[]
-  ): (routeKeys: string[]) => Router<G> {
+    middlewares: RequestHandler<G>[]
+  ): (routeKeys: string[]) => void {
     return (routeKeys: string[]) => {
       for (const routeKey of routeKeys) {
         const route = this.routes.get(routeKey);
 
         route?.middlewares.unshift(...middlewares);
       }
-      return this;
     };
   }
 
-  private mountRoutes(
+  protected mountRoutes(
     method: AllowedMethod,
     path: string,
-    ...handlers: (RequestHandler<G>)[]
+    ...handlers: RequestHandler<G>[]
   ): void {
     this.lastMountedRouteKey = `${method}::${path}`;
     const route = this.routes.get(this.lastMountedRouteKey);
@@ -239,12 +297,141 @@ export default class Router<G extends GenericTypes> {
     }
   }
 
+  protected resolver(middleware: string) {
+    const settings = this.preloadedHandler.get(middleware);
+
+    if (!settings)
+      throw new Error(
+        `Falied to load "${middleware}", make sure that Router.preload is called before.`
+      );
+
+    const [, handler = 'handle'] = middleware.split('.');
+    let { MiddlewareClass } = settings;
+    const middlewareClassName = this.middlewareClassName(middleware);
+
+    if (!MiddlewareClass) {
+      MiddlewareClass = this.loadClass(settings.fullPath, middlewareClassName);
+      settings.MiddlewareClass = MiddlewareClass;
+    }
+
+    if (!MiddlewareClass.prototype[handler]) {
+      throw new Error(
+        `Handler method '${handler}' not defined in '${middlewareClassName}'!`
+      );
+    }
+
+    return { MiddlewareClass, handler };
+  }
+
+  private middlewareClassName(middleware: string) {
+    let middlewareClassName =
+      middleware.substring(0, middleware.indexOf('.')) || middleware;
+    middlewareClassName =
+      middlewareClassName[0].toUpperCase() + middlewareClassName.substring(1);
+    return middlewareClassName;
+  }
+
+  /**
+   * Loads a middleware class from a full path and a middleware class name.
+   * 
+   * @param fullPath - The full path of the middleware class file.
+   * @param middlewareClassName - The name of the middleware class.
+   * @throws {Error} Throws an exception if the middleware class cannot be loaded.
+   * @returns The loaded middleware class.
+   */
+  protected loadClass(fullPath: string, middlewareClassName: string) {
+    const loadedMiddleware = require(fullPath);
+
+    const MiddlewareClass =
+      loadedMiddleware.default || loadedMiddleware[middlewareClassName];
+
+    if (!MiddlewareClass)
+      throw new Error(`Failed to load Module ${middlewareClassName} !`);
+
+    return MiddlewareClass;
+  }
+
+  protected preloadScanDir = Treegen.scanDir;
+
+  /**
+   * Preload middleware classes.
+   *
+   * @param fullPreload - Whether to preload all middleware classes.
+   */
+  protected preload() {
+    const project = this.preloadScanDir({
+      dirPath: process.cwd(),
+    });
+
+    const projectFiles = project
+      .split('\n')
+      .map((line) => line.replaceAll('>', '/'));
+
+    for (const { middlewares } of this.routes.values()) {
+      for (const middleware of middlewares) {
+        if (typeof middleware === 'string') {
+          this.preloadMiddleware(middleware, projectFiles);
+        }
+      }
+    }
+  }
+
+  /**
+   * Preload a single middleware.
+   *
+   * @param middleware - The name of the middleware.
+   * @param projectFiles - List of project files.
+   */
+  protected preloadMiddleware(middleware: string, projectFiles: string[]) {
+    if (this.preloadedHandler.has(middleware)) {
+      return;
+    }
+
+    const middlewareFileName =
+      middleware.substring(0, middleware.lastIndexOf('.')) || middleware;
+
+    const relativePath = projectFiles.find((file) =>
+      new RegExp(`.*${middlewareFileName}(\.ts|\.js)$`).test(file)
+    );
+
+    if (!relativePath) {
+      throw new Error(
+        `Failed to load '${middleware}'! Module ${middleware} does not exist in the project hierarchy.`
+      );
+    }
+
+    const fullPath = path.join(
+      process.cwd(),
+      relativePath.substring(relativePath.indexOf('/'))
+    );
+
+    const middlewareClassName = this.middlewareClassName(middleware);
+    const settings = {
+      fullPath,
+      middlewareClassName,
+      MiddlewareClass: undefined,
+    };
+
+    if (this.fullPreload) {
+      const MiddlewareClass = this.loadClass(fullPath, middlewareClassName);
+      settings.MiddlewareClass = MiddlewareClass;
+    }
+
+    this.preloadedHandler.set(middleware, settings);
+  }
+
   /**
    * Get the last mounted route key.
    *
-   * @returns {string | undefined} - The last mounted route key.
+   * @returns {RouteKey} - The last mounted route key.
    */
-  get register(): string | undefined {
-    return this.lastMountedRouteKey;
+  get register(): RouteKey {
+    return this.lastMountedRouteKey as RouteKey;
+  }
+
+  protected get routes() {
+    return Router.routeStore.get(this.name) as RouteSettings<G> & {
+      resolver: Router<G>['resolver'];
+    };
   }
 }
