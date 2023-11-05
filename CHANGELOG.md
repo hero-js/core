@@ -2,6 +2,12 @@
 
 All notable changes to the `@hero-js/core` package will be documented in this file.
 
+## [0.1.1] - 2023-11-05
+
+### Added
+
+- Added `Middleware` as an abstraction class for controllers and middlewares.
+
 ## [0.1.0] - 2023-10-29
 
 ### Added

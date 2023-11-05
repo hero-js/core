@@ -13,7 +13,7 @@ export type GenericTypes<
   R extends Record<string, any> = Record<string, any>
 > = {
   T: T;
-  R: R;
+  R: R & { statusCode?: number };
   N: N;
 };
 
