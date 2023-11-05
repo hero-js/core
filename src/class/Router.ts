@@ -24,24 +24,26 @@ export default class Router<G extends GenericTypes> {
     { fullPath: string; middlewareClassName: string; MiddlewareClass?: any }
   > = new Map();
   protected lastMountedRouteKey?: RouteKey;
-  protected name: string;
+  private _basePath: string;
   protected fullPreload: boolean;
 
   /**
    * Create an instance of the Router class with an optional context.
-   *
-   * @param context - The context to use, or a volatile context by default.
    */
   constructor({
-    name,
+    basePath = '/',
     context,
     fullPreload = false,
-  }: { name?: string; context?: Context | null; fullPreload?: boolean } = {}) {
+  }: {
+    basePath?: string;
+    context?: Context | null;
+    fullPreload?: boolean;
+  } = {}) {
     this.context = context ?? Context.createVolatileContext();
-    this.name = name ?? Math.random().toString(36).substring(3);
+    this._basePath = basePath;
     this.fullPreload = fullPreload;
 
-    if (!this.routes) Router.routeStore.set(this.name, new Map());
+    if (!this.routes) Router.routeStore.set(this._basePath, new Map());
   }
 
   /**
@@ -49,8 +51,8 @@ export default class Router<G extends GenericTypes> {
    *
    * @returns {Router<G>} A new instance of Router.
    */
-  public static create<G extends GenericTypes>(name?: string): Router<G> {
-    return new Router<G>({ name });
+  public static create<G extends GenericTypes>(basePath?: string): Router<G> {
+    return new Router<G>({ basePath });
   }
 
   // public static use<G extends GenericTypes>(
@@ -97,7 +99,7 @@ export default class Router<G extends GenericTypes> {
   /**
    * The `use` method mounts middleware on the specified path and handles requests with the given request handlers.
    * - When the first handler is a function, the path is automatically set to "*" (all routes).
-   * - If the first handler is not a valid path starting with "/", it is considered as a middleware class name.
+   * - If the first handler is not a valid path starting with "/", it is considered as a middleware class _basePath.
    *
    * @param {...(RequestHandler<G>)} handlers - The request handlers or path for middleware.
    * @returns {Router<G>} - The current router instance.
@@ -109,7 +111,7 @@ export default class Router<G extends GenericTypes> {
    *   next();
    * });
    *
-   * router.use('/api', MiddlewareClass.name);
+   * router.use('/api', MiddlewareClass._basePath);
    * ```
    */
   public use(...handlers: RequestHandler<G>[]): Router<G> {
@@ -125,7 +127,7 @@ export default class Router<G extends GenericTypes> {
     }
     // else {
     //   console.warn(
-    //     'You have multiple handlers, and the first handler does not specify a valid path; it will be utilized as a middleware class name.'
+    //     'You have multiple handlers, and the first handler does not specify a valid path; it will be utilized as a middleware class _basePath.'
     //   );
     // }
 
@@ -250,7 +252,6 @@ export default class Router<G extends GenericTypes> {
    * @param {RequestHandler<G>[]} middlewares - The middleware handlers.
    * @returns {{ register: RouteKey; }} - Object with the last mounted route key.
    */
-
   public middleware(middlewares: RequestHandler<G>[]): { register: RouteKey } {
     if (this.lastMountedRouteKey) {
       const route = this.routes.get(this.lastMountedRouteKey);
@@ -278,6 +279,15 @@ export default class Router<G extends GenericTypes> {
     };
   }
 
+  public getRoutes() {
+    this.preload();
+
+    return {
+      routes: this.routes,
+      resolver: this.resolver.bind(this),
+    };
+  }
+
   protected mountRoutes(
     method: AllowedMethod,
     path: string,
@@ -297,12 +307,15 @@ export default class Router<G extends GenericTypes> {
     }
   }
 
-  protected resolver(middleware: string) {
+  protected resolver(middleware: RequestHandler<G>) {
+    if (typeof middleware === 'function')
+      return { MiddlewareClass: null, handler: middleware };
+
     const settings = this.preloadedHandler.get(middleware);
 
     if (!settings)
       throw new Error(
-        `Falied to load "${middleware}", make sure that Router.preload is called before.`
+        `Failed to load "${middleware}", make sure that Router.preload is called before.`
       );
 
     const [, handler = 'handle'] = middleware.split('.');
@@ -332,10 +345,10 @@ export default class Router<G extends GenericTypes> {
   }
 
   /**
-   * Loads a middleware class from a full path and a middleware class name.
-   * 
+   * Loads a middleware class from a full path and a middleware class _basePath.
+   *
    * @param fullPath - The full path of the middleware class file.
-   * @param middlewareClassName - The name of the middleware class.
+   * @param middlewareClassName - The _basePath of the middleware class.
    * @throws {Error} Throws an exception if the middleware class cannot be loaded.
    * @returns The loaded middleware class.
    */
@@ -379,7 +392,7 @@ export default class Router<G extends GenericTypes> {
   /**
    * Preload a single middleware.
    *
-   * @param middleware - The name of the middleware.
+   * @param middleware - The _basePath of the middleware.
    * @param projectFiles - List of project files.
    */
   protected preloadMiddleware(middleware: string, projectFiles: string[]) {
@@ -391,7 +404,7 @@ export default class Router<G extends GenericTypes> {
       middleware.substring(0, middleware.lastIndexOf('.')) || middleware;
 
     const relativePath = projectFiles.find((file) =>
-      new RegExp(`.*${middlewareFileName}(\.ts|\.js)$`).test(file)
+      new RegExp(`.*\/${middlewareFileName}(\.ts|\.js)$`).test(file)
     );
 
     if (!relativePath) {
@@ -430,8 +443,10 @@ export default class Router<G extends GenericTypes> {
   }
 
   protected get routes() {
-    return Router.routeStore.get(this.name) as RouteSettings<G> & {
-      resolver: Router<G>['resolver'];
-    };
+    return Router.routeStore.get(this._basePath) as RouteSettings<G>;
+  }
+
+  get basePath() {
+    return this._basePath;
   }
 }
