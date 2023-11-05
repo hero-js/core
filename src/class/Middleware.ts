@@ -4,6 +4,12 @@ import {
   RequestHandlerParams
 } from '../interfaces/router';
 
+/**
+ * The Middleware class serves as a model for defining methods that will be used by other middlewares or controllers.
+ * It includes basic methods like 'handler', which returns the module name of the class,
+ * and 'responseBuilder', which determines the format of the responses.
+ * The 'handle' method must be implemented, even if it is not necessary in a controller.
+ */
 export default abstract class Middleware<G extends GenericTypes> {
   static moduleName?: string;
 
@@ -34,7 +40,14 @@ export default abstract class Middleware<G extends GenericTypes> {
     return `${c.moduleName}.${name}`;
   }
 
-  responseBuilder(res: string | number | G['R']) {
+  
+  
+  /**
+   * Builds a response from a string, number, or object.
+   * @param {string | number | T} res - The response to build.
+   * @returns {string | number | T} - The built response.
+   */
+  responseBuilder<T>(res: string | number | T): string | number | T {
     return res;
   }
 }
