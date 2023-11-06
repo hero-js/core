@@ -46,7 +46,9 @@ export default abstract class Middleware<G extends GenericTypes> {
    * @param {string | number | T} res - The response to build.
    * @returns {string | number | T} - The built response.
    */
-  responseBuilder<T>(res: string | number | T): string | number | T {
+  responseBuilder<T extends Record<string, any> = Record<string, any>>(
+    res: string | number | T
+  ): string | number | T {
     return res;
   }
 }
