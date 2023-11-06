@@ -1,7 +1,8 @@
 import Context from '@hero-js/context';
 import {
   GenericTypes,
-  RequestHandlerParams
+  RequestHandler,
+  RequestHandlerParams,
 } from '../interfaces/router';
 
 /**
@@ -40,8 +41,6 @@ export default abstract class Middleware<G extends GenericTypes> {
     return `${c.moduleName}.${name}`;
   }
 
-  
-  
   /**
    * Builds a response from a string, number, or object.
    * @param {string | number | T} res - The response to build.

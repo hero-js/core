@@ -10,6 +10,7 @@ import {
 import Context from '@hero-js/Context';
 import { Treegen } from '@hero-js/treegen';
 import path from 'path';
+import Middleware from './Middleware';
 
 /**
  * Class for managing generic routes.
@@ -21,7 +22,11 @@ export default class Router<G extends GenericTypes> {
   protected static routeStore: RouteStore<GenericTypes> = new Map();
   protected preloadedHandler: Map<
     string,
-    { fullPath: string; middlewareClassName: string; MiddlewareClass?: any }
+    {
+      fullPath: string;
+      middlewareClassName: string;
+      MiddlewareClass: typeof Middleware<G> | null;
+    }
   > = new Map();
   protected lastMountedRouteKey?: RouteKey;
   private _basePath: string;
@@ -29,21 +34,36 @@ export default class Router<G extends GenericTypes> {
 
   /**
    * Create an instance of the Router class with an optional context.
+   *
+   * @param {Object} options - The options for the Router.
+   * @param {string} options.basePath - Basic path for the router, but also its unique identifier. Defaults to '/'.
+   * @param {Context | null} options.context - The context for the Router. If not provided, a volatile context will be created.
+   * @param {boolean} options.fullPreload - Whether to fully preload the Router. Defaults to false.
+   * @param {boolean} options.overwriteExisting - Whether to overwrite an existing Router with the same basePath. Defaults to false.
    */
   constructor({
     basePath = '/',
     context,
     fullPreload = false,
+    overwriteExisting = false,
   }: {
     basePath?: string;
     context?: Context | null;
     fullPreload?: boolean;
+    overwriteExisting?: boolean;
   } = {}) {
     this.context = context ?? Context.createVolatileContext();
     this._basePath = basePath;
     this.fullPreload = fullPreload;
 
-    if (!this.routes) Router.routeStore.set(this._basePath, new Map());
+    if (!this.routes || !overwriteExisting) {
+      if (this.routes)
+        console.warn(
+          `Router "${this.basePath}" already exists, it will be overwritten.`
+        );
+
+      Router.routeStore.set(this._basePath, new Map());
+    }
   }
 
   /**
@@ -327,13 +347,16 @@ export default class Router<G extends GenericTypes> {
       settings.MiddlewareClass = MiddlewareClass;
     }
 
-    if (!MiddlewareClass.prototype[handler]) {
+    if (!(MiddlewareClass?.prototype as any)[handler]) {
       throw new Error(
         `Handler method '${handler}' not defined in '${middlewareClassName}'!`
       );
     }
 
-    return { MiddlewareClass, handler };
+    return {
+      MiddlewareClass: MiddlewareClass as Exclude<typeof MiddlewareClass, null>,
+      handler,
+    };
   }
 
   private middlewareClassName(middleware: string) {
@@ -422,7 +445,7 @@ export default class Router<G extends GenericTypes> {
     const settings = {
       fullPath,
       middlewareClassName,
-      MiddlewareClass: undefined,
+      MiddlewareClass: null,
     };
 
     if (this.fullPreload) {

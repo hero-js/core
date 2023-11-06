@@ -1,6 +1,7 @@
 import path from 'path';
 import Router from '../class/Router'; // Adjust the import path as needed
-import { GenericTypes, RequestHandler } from '../interfaces/router';
+import { GenericTypes, RequestHandler, RequestHandlerParams } from '../interfaces/router';
+import Middleware from '../class/Middleware';
 
 type G = GenericTypes<() => string>;
 
@@ -12,10 +13,7 @@ describe('Router', () => {
 
   it('should add a "use" route with middleware', () => {
     const router = Router.create<G>();
-    router.use(({ request, response, next }) => {
-      // Middleware logic
-      next();
-    });
+    router.use('8522');
     const route = router['routes'].get('use::*');
     expect(route).toBeDefined();
     expect(route?.middlewares).toHaveLength(1);
@@ -63,19 +61,11 @@ describe('Router', () => {
 
   it('should add middleware to the last mounted route', () => {
     const router = Router.create<G>();
-    router.use(({ request, response, next }) => {
-      // Middleware logic
-      next();
-    });
-    router.use(({ request, response, next }) => {
-      // Another middleware logic
-      next();
-    });
+    console.log(Router['routeStore'].get('/'));
+    router.use("1");
+    router.use('89');
     router.middleware([
-      ({ request, response, next }) => {
-        // Additional middleware
-        next();
-      },
+      'p'
     ]);
 
     const route = router['routes'].get('use::*');
@@ -138,7 +128,11 @@ describe('Router', () => {
         }
       );
 
-      class MyMiddleware {}
+      class MyMiddleware extends Middleware<G>{
+        handle() {
+          return 'Middleware';
+        }
+      }
 
       // Mock the loadClass function to simulate loading classes
       const mockLoadClass = jest.fn(
@@ -158,7 +152,7 @@ describe('Router', () => {
         router['preloadedHandler'].set(middleware, {
           fullPath,
           middlewareClassName: router['middlewareClassName'](middleware),
-          MiddlewareClass: router['fullPreload'] ? MyMiddleware : undefined,
+          MiddlewareClass: router['fullPreload'] ? MyMiddleware : null,
         });
       });
 
