@@ -1,8 +1,7 @@
 import Context from '@hero-js/context';
 import {
   GenericTypes,
-  RequestHandler,
-  RequestHandlerParams,
+  RequestHandlerParams
 } from '../interfaces/router';
 
 /**
@@ -11,7 +10,7 @@ import {
  * and 'responseBuilder', which determines the format of the responses.
  * The 'handle' method must be implemented, even if it is not necessary in a controller.
  */
-export default abstract class Middleware<G extends GenericTypes> {
+export default abstract class Middleware<G extends GenericTypes, ApiResponse extends Record<string, any> = Record<string, any>> {
   static moduleName?: string;
 
   context: Context | null;
@@ -46,9 +45,7 @@ export default abstract class Middleware<G extends GenericTypes> {
    * @param {string | number | T} res - The response to build.
    * @returns {string | number | T} - The built response.
    */
-  responseBuilder<T extends Record<string, any> = Record<string, any>>(
-    res: string | number | T
-  ): string | number | T {
+  responseBuilder(res: string | number | ApiResponse): string | number | ApiResponse {
     return res;
   }
 }
