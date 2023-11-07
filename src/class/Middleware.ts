@@ -10,7 +10,10 @@ import {
  * and 'responseBuilder', which determines the format of the responses.
  * The 'handle' method must be implemented, even if it is not necessary in a controller.
  */
-export default abstract class Middleware<G extends GenericTypes, ApiResponse extends Record<string, any> = Record<string, any>> {
+export default abstract class Middleware<
+  G extends GenericTypes,
+  ApiResponse extends Record<string, any> = Record<string, any>
+> {
   static moduleName?: string;
 
   context: Context | null;
@@ -35,9 +38,9 @@ export default abstract class Middleware<G extends GenericTypes, ApiResponse ext
 
   abstract handle(params: RequestHandlerParams<G>): any;
 
-  static handler(c: typeof Middleware, name: string) {
-    if (!c.moduleName) throw new Error(`Module name not defined in ${c.name}`);
-    return `${c.moduleName}.${name}`;
+  static handler<T = string>(methodName: T, moduleName?: string): string {
+    moduleName = moduleName ?? this.moduleName ?? this.name;
+    return `${moduleName}.${methodName}`;
   }
 
   /**
@@ -45,7 +48,9 @@ export default abstract class Middleware<G extends GenericTypes, ApiResponse ext
    * @param {string | number | T} res - The response to build.
    * @returns {string | number | T} - The built response.
    */
-  responseBuilder(res: string | number | ApiResponse): string | number | ApiResponse {
+  responseBuilder(
+    res: string | number | ApiResponse
+  ): string | number | ApiResponse {
     return res;
   }
 }
