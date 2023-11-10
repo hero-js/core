@@ -8,6 +8,8 @@
     "test": "jest",
     "build": "rm -rf ./dist & tsc && cp -r ./dist/src/. ./dist && rm -rf ./dist/src",
     "win-build": "rmdir /s /q .\\dist & tsc && xcopy /s /e /Y .\\dist\\src dist && rmdir /s /q .\\dist\\src",
+    "publish": "npm run build && npm publish --access=public",
+    "win-publish": "npm run win-build && npm publish --access=public",
     "generate-doc": "typedoc"
   },
   "repository": {
