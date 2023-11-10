@@ -2,6 +2,24 @@
 
 All notable changes to the `@hero-js/core` package will be documented in this file.
 
+## [0.2.0] - 2023-11-10
+
+### Added
+
+- Improved method of preloading middleware
+
+## [0.1.2] - 2023-11-06
+
+### Fixed
+
+- Fix `Middleware.responseBuilder` generics types
+
+## [0.1.2] - 2023-11-06
+
+### Added
+
+- Added `overwriteExisting` parameter to the `Router` class to allow the creation of a new router instance with an already existing base path
+
 ## [0.1.1] - 2023-11-05
 
 ### Added

@@ -10,6 +10,7 @@ import {
 import Context from '@hero-js/Context';
 import { Treegen } from '@hero-js/treegen';
 import path from 'path';
+import Middleware from './Middleware';
 
 /**
  * Class for managing generic routes.
@@ -19,9 +20,24 @@ import path from 'path';
 export default class Router<G extends GenericTypes> {
   protected context: Context | null;
   protected static routeStore: RouteStore<GenericTypes> = new Map();
+  protected static preloader: {
+    project: string;
+    projectFiles: string[];
+    lastScan: number;
+    cwd: string;
+  } = {
+    project: '',
+    projectFiles: [],
+    lastScan: 0,
+    cwd: process.cwd(),
+  };
   protected preloadedHandler: Map<
     string,
-    { fullPath: string; middlewareClassName: string; MiddlewareClass?: any }
+    {
+      fullPath: string;
+      middlewareClassName: string;
+      MiddlewareClass: typeof Middleware<G> | null;
+    }
   > = new Map();
   protected lastMountedRouteKey?: RouteKey;
   private _basePath: string;
@@ -29,21 +45,36 @@ export default class Router<G extends GenericTypes> {
 
   /**
    * Create an instance of the Router class with an optional context.
+   *
+   * @param {Object} options - The options for the Router.
+   * @param {string} options.basePath - Basic path for the router, but also its unique identifier. Defaults to '/'.
+   * @param {Context | null} options.context - The context for the Router. If not provided, a volatile context will be created.
+   * @param {boolean} options.fullPreload - Whether to fully preload the Router. Defaults to false.
+   * @param {boolean} options.overwriteExisting - Whether to overwrite an existing Router with the same basePath. Defaults to false.
    */
   constructor({
     basePath = '/',
     context,
     fullPreload = false,
+    overwriteExisting = false,
   }: {
     basePath?: string;
     context?: Context | null;
     fullPreload?: boolean;
+    overwriteExisting?: boolean;
   } = {}) {
     this.context = context ?? Context.createVolatileContext();
     this._basePath = basePath;
     this.fullPreload = fullPreload;
 
-    if (!this.routes) Router.routeStore.set(this._basePath, new Map());
+    if (!this.routes || !overwriteExisting) {
+      if (this.routes)
+        console.warn(
+          `Router "${this.basePath}" already exists, it will be overwritten.`
+        );
+
+      Router.routeStore.set(this._basePath, new Map());
+    }
   }
 
   /**
@@ -327,13 +358,16 @@ export default class Router<G extends GenericTypes> {
       settings.MiddlewareClass = MiddlewareClass;
     }
 
-    if (!MiddlewareClass.prototype[handler]) {
+    if (!(MiddlewareClass?.prototype as any)[handler]) {
       throw new Error(
         `Handler method '${handler}' not defined in '${middlewareClassName}'!`
       );
     }
 
-    return { MiddlewareClass, handler };
+    return {
+      MiddlewareClass: MiddlewareClass as Exclude<typeof MiddlewareClass, null>,
+      handler,
+    };
   }
 
   private middlewareClassName(middleware: string) {
@@ -372,18 +406,49 @@ export default class Router<G extends GenericTypes> {
    * @param fullPreload - Whether to preload all middleware classes.
    */
   protected preload() {
-    const project = this.preloadScanDir({
-      dirPath: process.cwd(),
-    });
+    if (
+      Date.now() - Router.preloader.lastScan > 60000 ||
+      Router.preloader.cwd !== process.cwd()
+    ) {
+      Router.preloader.lastScan = Date.now();
+      Router.preloader.cwd = process.cwd();
 
-    const projectFiles = project
-      .split('\n')
-      .map((line) => line.replaceAll('>', '/'));
+      const project = this.preloadScanDir({
+        dirPath: process.cwd(),
+        ignoreRules: [
+          '.*node_modules.*',
+          '.*git',
+          '.*\.env',
+          '\.env\..*',
+          '.*logs.*',
+          '.*log',
+          'npm-debug.log.*',
+          'yarn-debug.log.*',
+          'yarn-error.log.*',
+          'lerna-debug.log.*',
+          '.pnpm-debug.log.*',
+          'report.[0-9]?.[0-9]?.[0-9]?.[0-9]?.json',
+          'pids',
+          '*.pid',
+          '*.seed',
+          '*.pid.lock',
+          '.*lib-cov.*',
+        ],
+        // ignoreRules: ['node_modules', '.*git', '.*Kernel.*', '.*env.*', ],
+      });
+
+      if (Router.preloader.project !== project) {
+        Router.preloader.project = project;
+        Router.preloader.projectFiles = project
+          .split('\n')
+          .map((line) => line.replaceAll('>', '/'));
+      }
+    }
 
     for (const { middlewares } of this.routes.values()) {
       for (const middleware of middlewares) {
         if (typeof middleware === 'string') {
-          this.preloadMiddleware(middleware, projectFiles);
+          this.preloadMiddleware(middleware, Router.preloader.projectFiles);
         }
       }
     }
@@ -422,7 +487,7 @@ export default class Router<G extends GenericTypes> {
     const settings = {
       fullPath,
       middlewareClassName,
-      MiddlewareClass: undefined,
+      MiddlewareClass: null,
     };
 
     if (this.fullPreload) {

@@ -2,7 +2,7 @@
 
 `@hero-js/core` is a versatile library that provides tools for managing generic routes and handling HTTP requests in JavaScript and TypeScript applications. It is designed to simplify the process of creating and managing routes and request handling within your application.
 
-**Please note**: `@hero-js/core` is a generic layer and should be used with specific web frameworks such as `@hero-js/express` or `@hero-js/fastify` to create web applications. The core library focuses on defining and managing routes, middleware, and request handling in a generic way.
+**Please note**: `@hero-js/core` is a generic layer and should be used with specific web frameworks such as `express` or `fastify` to create web applications. You need to build an adapter for the framework you want to use, like express, fastify. Or you can use an already built adapter like [`@hero-js/express-adapter`](https://www.npmjs.com/package/@hero-js/express-adapter), `@hero-js/fastify-adapter`. The core library focuses on defining and managing routes, middleware, and request handling in a generic way.
 
 ## Features
 
@@ -45,8 +45,21 @@ router.use((req, res, next) => {
   next();
 });
 
-router.get('/api', 'ControllerName.one');
-router.post('/api', 'ControllerName.create');
+router.get('/', ({ response }) => {
+  response.send('Health Ok!');
+})
+
+router.batchMiddleware(['LoggerMiddleware'])([
+    router.get('/api', 'ArticleController.one'),
+    // and other route
+
+  ...router.batchMiddleware([
+    'AuthMiddleware'
+  ])([
+    router.post('/api', 'ControllerName.create').middleware(['SerializerMiddleware']).register;
+    // and other route
+  ])
+]);
 
 // Use the ExpressAdapter to integrate with Express
 const app = adapter.adapt(router);
