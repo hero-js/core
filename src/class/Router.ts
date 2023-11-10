@@ -20,6 +20,17 @@ import Middleware from './Middleware';
 export default class Router<G extends GenericTypes> {
   protected context: Context | null;
   protected static routeStore: RouteStore<GenericTypes> = new Map();
+  protected static preloader: {
+    project: string;
+    projectFiles: string[];
+    lastScan: number;
+    cwd: string;
+  } = {
+    project: '',
+    projectFiles: [],
+    lastScan: 0,
+    cwd: process.cwd(),
+  };
   protected preloadedHandler: Map<
     string,
     {
@@ -395,18 +406,49 @@ export default class Router<G extends GenericTypes> {
    * @param fullPreload - Whether to preload all middleware classes.
    */
   protected preload() {
-    const project = this.preloadScanDir({
-      dirPath: process.cwd(),
-    });
+    if (
+      Date.now() - Router.preloader.lastScan > 60000 ||
+      Router.preloader.cwd !== process.cwd()
+    ) {
+      Router.preloader.lastScan = Date.now();
+      Router.preloader.cwd = process.cwd();
 
-    const projectFiles = project
-      .split('\n')
-      .map((line) => line.replaceAll('>', '/'));
+      const project = this.preloadScanDir({
+        dirPath: process.cwd(),
+        ignoreRules: [
+          '.*node_modules.*',
+          '.*git',
+          '.*\.env',
+          '\.env\..*',
+          '.*logs.*',
+          '.*log',
+          'npm-debug.log.*',
+          'yarn-debug.log.*',
+          'yarn-error.log.*',
+          'lerna-debug.log.*',
+          '.pnpm-debug.log.*',
+          'report.[0-9]?.[0-9]?.[0-9]?.[0-9]?.json',
+          'pids',
+          '*.pid',
+          '*.seed',
+          '*.pid.lock',
+          '.*lib-cov.*',
+        ],
+        // ignoreRules: ['node_modules', '.*git', '.*Kernel.*', '.*env.*', ],
+      });
+
+      if (Router.preloader.project !== project) {
+        Router.preloader.project = project;
+        Router.preloader.projectFiles = project
+          .split('\n')
+          .map((line) => line.replaceAll('>', '/'));
+      }
+    }
 
     for (const { middlewares } of this.routes.values()) {
       for (const middleware of middlewares) {
         if (typeof middleware === 'string') {
-          this.preloadMiddleware(middleware, projectFiles);
+          this.preloadMiddleware(middleware, Router.preloader.projectFiles);
         }
       }
     }

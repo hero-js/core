@@ -2,6 +2,12 @@
 
 All notable changes to the `@hero-js/core` package will be documented in this file.
 
+## [0.2.0] - 2023-11-10
+
+### Added
+
+- Improved method of preloading middleware
+
 ## [0.1.2] - 2023-11-06
 
 ### Fixed
