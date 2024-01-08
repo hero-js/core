@@ -428,13 +428,7 @@ export default class Router<G extends GenericTypes> {
           'lerna-debug.log.*',
           '.pnpm-debug.log.*',
           'report.[0-9]?.[0-9]?.[0-9]?.[0-9]?.json',
-          'pids',
-          '*.pid',
-          '*.seed',
-          '*.pid.lock',
-          '.*lib-cov.*',
         ],
-        // ignoreRules: ['node_modules', '.*git', '.*Kernel.*', '.*env.*', ],
       });
 
       if (Router.preloader.project !== project) {

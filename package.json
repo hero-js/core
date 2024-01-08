@@ -1,6 +1,6 @@
 {
   "name": "@hero-js/core",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "description": "Core of herojs framework",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -8,7 +8,7 @@
     "test": "jest",
     "build": "rm -rf ./dist & tsc && cp -r ./dist/src/. ./dist && rm -rf ./dist/src",
     "win-build": "rmdir /s /q .\\dist & tsc && xcopy /s /e /Y .\\dist\\src dist && rmdir /s /q .\\dist\\src",
-    "publish": "npm run build && npm publish --access=public",
+    "l-publish": "npm run build && npm publish --access=public",
     "win-publish": "npm run win-build && npm publish --access=public",
     "generate-doc": "typedoc"
   },
@@ -43,8 +43,8 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "@hero-js/context": "^1.0.0",
-    "@hero-js/treegen": "^1.0.10"
+    "@hero-js/context": "^1.1.2",
+    "@hero-js/treegen": "^1.0.11"
   },
   "directories": {
     "doc": "docs"
