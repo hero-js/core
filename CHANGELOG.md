@@ -2,6 +2,12 @@
 
 All notable changes to the `@hero-js/core` package will be documented in this file.
 
+## [0.2.2] - 2024-01-08
+
+### Added
+
+- Switch from pnpm to npm
+
 ## [0.2.0] - 2023-11-10
 
 ### Added
